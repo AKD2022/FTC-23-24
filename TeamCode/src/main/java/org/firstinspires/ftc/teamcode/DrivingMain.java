@@ -1,24 +1,18 @@
 package org.firstinspires.ftc.teamcode;
 
 
-import com.arcrobotics.ftclib.drivebase.MecanumDrive;
 import com.arcrobotics.ftclib.gamepad.GamepadEx;
 import com.arcrobotics.ftclib.hardware.ServoEx;
-import com.arcrobotics.ftclib.hardware.SimpleServo;
 import com.arcrobotics.ftclib.hardware.motors.Motor;
 import com.arcrobotics.ftclib.hardware.motors.MotorGroup;
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
-
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 //Arnesh, Owen
 @TeleOp(name="MainOpMode22280")
-public class MainOpMode22280 extends LinearOpMode  {
+public class DrivingMain extends LinearOpMode  {
     private DcMotor fL, fR, bL, bR;
     private GamepadEx driverController1;
     private GamepadEx driverController2;
@@ -30,6 +24,8 @@ public class MainOpMode22280 extends LinearOpMode  {
     private ServoEx rightArmServo;
     private Servo airplaneLauncher;
     private ServoEx leftClawServo, rightClawServo;
+
+    private AirplaneLauncher ap;
 
     /*
     public void closeClaw(){
@@ -210,7 +206,7 @@ public class MainOpMode22280 extends LinearOpMode  {
                 openClaw();
             }
              */
-            
+
 
             telemetry.update();
 
