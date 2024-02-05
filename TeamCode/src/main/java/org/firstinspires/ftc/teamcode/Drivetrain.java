@@ -22,7 +22,6 @@ public class Drivetrain extends LinearOpMode {
         bL.setDirection(DcMotor.Direction.FORWARD);
         bR.setDirection(DcMotor.Direction.REVERSE);
 
-
         while(opModeIsActive()) {
             double drive = -gamepad1.left_stick_y;
             double strafe = gamepad1.left_stick_x;
@@ -49,7 +48,7 @@ public class Drivetrain extends LinearOpMode {
             bL.setPower(backLeftPower);
             bR.setPower(backRightPower);
 
-            // Update telemetry
+
             telemetry.addData("Front Left Power", frontLeftPower);
             telemetry.addData("Front Right Power", frontRightPower);
             telemetry.addData("Back Left Power", backLeftPower);

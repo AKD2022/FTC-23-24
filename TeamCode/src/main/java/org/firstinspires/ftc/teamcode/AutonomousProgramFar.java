@@ -34,7 +34,6 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.TouchSensor;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.ExposureControl;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.GainControl;
@@ -56,8 +55,10 @@ import com.qualcomm.robotcore.hardware.IMU;
 
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
-@Autonomous(name="TFOD_BlueFrontAprilTag")
-public class AutonomousProgram extends LinearOpMode
+// If we are on the far side
+
+@Autonomous(name="Autonomous")
+public class AutonomousProgramFar extends LinearOpMode
 {
     final double DESIRED_DISTANCE = 12; //  this is how close the camera should get to the target (inches)
     final double SPEED_GAIN  =  0.02  ;   // 0.02 Forward Speed Control "Gain". eg: Ramp up to 50% power at a 25 inch error.   (0.50 / 25.0)
@@ -72,7 +73,6 @@ public class AutonomousProgram extends LinearOpMode
     private DcMotor fR = null;
     private DcMotor bL = null;
     private DcMotor bR = null;
-
     private static final boolean USE_WEBCAM = true;
     private int DESIRED_TAG_ID = 10;     // 584 Choose the tag you want to approach or set to -1 for ANY tag.
     private int backdropTagID = 0;
@@ -96,8 +96,6 @@ public class AutonomousProgram extends LinearOpMode
 
     IMU imu;
 
-    TouchSensor touchSensor;  // Touch sensor Object
-
     // servo variables
     static final double INCREMENT   = 0.08;     // .01 amount to slew servo each CYCLE_MS cycle
     static final int    CYCLE_MS    =   50;     // period of each cycle
@@ -106,6 +104,7 @@ public class AutonomousProgram extends LinearOpMode
 
     // Define class members
     Servo armServo, clawLeft, clawRight;
+    private DcMotor leftSlide, rightSlide;
 
     @Override public void runOpMode()
     {
@@ -120,17 +119,11 @@ public class AutonomousProgram extends LinearOpMode
         // Initialize TensorFlow, April Tag, and Vision Portal
         initVisionPortal();
 
-        // Initialize the hardware variables. Note that the strings used here as parameters
-        // to 'get' must match the names assigned during the robot configuration.
-        // step (using the FTC Robot Controller app on the phone).
         fL = hardwareMap.get(DcMotor.class, "lF");
         fR = hardwareMap.get(DcMotor.class, "rF");
         bL  = hardwareMap.get(DcMotor.class, "lB");
         bR = hardwareMap.get(DcMotor.class, "rB");
 
-        // To drive forward, most robots need the motor on one side to be reversed, because the axles point in opposite directions.
-        // When run, this OpMode should start both motors driving forward. So adjust these two lines based on your first test drive.
-        // Note: The settings here assume direct drive on left and right wheels.  Gear Reduction or 90 Deg drives may require direction flips
         fL.setDirection(DcMotor.Direction.FORWARD);
         fR.setDirection(DcMotor.Direction.REVERSE);
         bL.setDirection(DcMotor.Direction.FORWARD);
@@ -151,17 +144,18 @@ public class AutonomousProgram extends LinearOpMode
 
         imu.initialize(new IMU.Parameters(orientationOnRobot));
 
-        //visionPortal.setActiveCamera(webcam1);
+        visionPortal.setActiveCamera(webcam1);
 
         // get a reference to our touchSensor object.
-        touchSensor = hardwareMap.get(TouchSensor.class, "sensor_touch");
-
 
         /* Servo Initialization */
         armServo = hardwareMap.get(Servo.class, "armServo");
         clawLeft = hardwareMap.get(Servo.class, "rightClawServo");
         clawRight = hardwareMap.get(Servo.class, "leftClawServo");
 
+        /* Slide Initialization */
+        leftSlide = hardwareMap.get(DcMotor.class, "leftSlide");
+        rightSlide = hardwareMap.get(DcMotor.class, "rightSlide");
 
         waitForStart();
 
@@ -211,8 +205,8 @@ public class AutonomousProgram extends LinearOpMode
                             }
                         }
                     }
-                }
-                else {  // Prop not found after timeout, assume Left mark as outside marks harder to detect
+                } else {
+                    // Assume that its on the left
                     currentStep = 2;
                     propLocation = "left";
                     backdropTagID = 1;
@@ -261,6 +255,7 @@ public class AutonomousProgram extends LinearOpMode
                 if (runtime.milliseconds() < 700) {
                     moveRobot(-0.5, 0, 0); // Moving the robot (change later)
                     // Add movement for the claw to drop the pixel
+                    currentStep = 10;
                 }
                 else {
                     moveRobot(0, 0, 0);
@@ -270,6 +265,8 @@ public class AutonomousProgram extends LinearOpMode
                 }
             }
 
+            /* Don't need to drive to back wall */
+            /*
             // STEP 6 turn to heading 90 to face front wall
             if (currentStep==6) {
                 if (runtime.milliseconds() < 2500) {
@@ -291,7 +288,7 @@ public class AutonomousProgram extends LinearOpMode
             //  - should end up in tile A2
             if (currentStep==7) {
                 if (runtime.milliseconds() < 3000) {
-                    aprilTagDrive(DESIRED_TAG_ID, DESIRED_DISTANCE,0.0,-38.0);
+                    aprilTagDrive(DESIRED_TAG_ID, 1.0,0.0,-38.0); // Change lateer
                 }
                 else {
                     moveRobot(0, 0, 0); // stop any moves
@@ -328,11 +325,12 @@ public class AutonomousProgram extends LinearOpMode
                     runtime.reset();     // start timer for step 10
                 }
             }
+             */
 
             // STEP 10 turn to face backdrop
             if (currentStep==10) {
                 if (runtime.milliseconds() < 1250) {
-                    imuTurn(45); // Angle of the turn if needed (change this later if needed)
+                    imuTurn(45); // Turn towards the backdrop (change if needed)
                     if(targetFound && (Math.abs(desiredTag.ftcPose.yaw - 45) < 7)){
                         moveRobot(0, 0, 0); // stop any moves
                         currentStep = 11; // drive to backdrop
@@ -433,7 +431,7 @@ public class AutonomousProgram extends LinearOpMode
                 .setModelFileName(TFOD_MODEL_FILE)
                 .setModelLabels(LABELS)
                 .build();
-        
+
 
         // Create the AprilTag processor by using a builder.
         aprilTag = new AprilTagProcessor.Builder()

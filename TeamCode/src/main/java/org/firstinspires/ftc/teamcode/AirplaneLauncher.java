@@ -10,7 +10,7 @@ public class AirplaneLauncher extends LinearOpMode {
     private Servo airplaneLauncher;
     public void runOpMode() {
 
-        airplaneLauncher = hardwareMap.get(Servo.class, "airplaneServo");
+        airplaneLauncher = hardwareMap.get(Servo.class, "airplaneServo"); // 3 on control hub
 
         while (opModeIsActive()) {
             if (gamepad1.x) {
