@@ -397,7 +397,7 @@ public class AutonomousProgramFar extends LinearOpMode
                 }
             }
 
-            // STEP 31 touch backdrop, drive until touch sensor
+            // Drive Close ENOUGH TO THE BACKBOARD
             if (currentStep==31) {
                 double elapsedTime = runtime.milliseconds();
                 double estimatedDistance = 0.2 * elapsedTime;
@@ -422,7 +422,7 @@ public class AutonomousProgramFar extends LinearOpMode
                 //currentStep==34
             }
 
-            // STEP 34 park, want to back away a little bit and strafe left -X, +Y
+            
             if (currentStep==34) {
                 // Move robot so that it can be parked
             }

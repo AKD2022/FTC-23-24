@@ -14,9 +14,9 @@ public class AirplaneLauncher extends LinearOpMode {
 
         while (opModeIsActive()) {
             if (gamepad1.x) {
-                airplaneLauncher.setPosition(1.0);
+                airplaneLauncher.setPosition(1.0); // launch the plane
             } else if (gamepad1.y) {
-                airplaneLauncher.setPosition(0);
+                airplaneLauncher.setPosition(0.0); // reset the servo
             }
         }
     }
