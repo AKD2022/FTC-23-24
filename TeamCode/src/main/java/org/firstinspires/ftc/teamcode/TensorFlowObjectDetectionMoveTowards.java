@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
@@ -10,17 +11,15 @@ import org.firstinspires.ftc.vision.tfod.TfodProcessor;
 
 import java.util.List;
 
-public class TensorFlowObjectDetection extends LinearOpMode {
+public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
     private static final boolean USE_WEBCAM = true;  // true for webcam, false for phone camera
+    private DcMotor fL = null;
+    private DcMotor fR = null;
+    private DcMotor bL = null;
+    private DcMotor bR = null;
 
-    // TFOD_MODEL_ASSET points to a model file stored in the project Asset location,
-    // this is only used for Android Studio when using models in Assets.
     private static final String TFOD_MODEL_ASSET = "MyModelStoredAsAsset.tflite";
-    // TFOD_MODEL_FILE points to a model file stored onboard the Robot Controller's storage,
-    // this is used when uploading models directly to the RC using the model upload interface.
-    private static final String TFOD_MODEL_FILE = "/sdcard/FIRST/tflitemodels/myCustomModel.tflite";
-    // Define the labels recognized in the model for TFOD (must be in training order!)
     private static final String[] LABELS = {
             "teamProp",
     };
@@ -34,6 +33,15 @@ public class TensorFlowObjectDetection extends LinearOpMode {
     @Override
     public void runOpMode() {
         initTfod();
+        fL = hardwareMap.get(DcMotor.class, "lF");
+        fR = hardwareMap.get(DcMotor.class, "rF");
+        bL  = hardwareMap.get(DcMotor.class, "lB");
+        bR = hardwareMap.get(DcMotor.class, "rB");
+
+        fL.setDirection(DcMotor.Direction.FORWARD);
+        fR.setDirection(DcMotor.Direction.REVERSE);
+        bL.setDirection(DcMotor.Direction.FORWARD);
+        bR.setDirection(DcMotor.Direction.REVERSE);
 
         // Wait for the DS start button to be touched.
         telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
@@ -46,6 +54,7 @@ public class TensorFlowObjectDetection extends LinearOpMode {
 
                 telemetryTfod();
 
+
                 // Push telemetry to the Driver Station.
                 telemetry.update();
 
@@ -54,6 +63,12 @@ public class TensorFlowObjectDetection extends LinearOpMode {
                     visionPortal.stopStreaming();
                 } else {
                     visionPortal.resumeStreaming();
+                }
+
+                // If it finds the cone, it should move forward
+                List<Recognition> currentRecognitions = tfod.getRecognitions();
+                for (Recognition recognition : currentRecognitions) {
+                    moveRobot(10, 0, 0);
                 }
 
                 // Share the CPU.
@@ -71,23 +86,8 @@ public class TensorFlowObjectDetection extends LinearOpMode {
 
         // Create the TensorFlow processor by using a builder.
         tfod = new TfodProcessor.Builder()
-
-                // With the following lines commented out, the default TfodProcessor Builder
-                // will load the default model for the season. To define a custom model to load,
-                // choose one of the following:
-                //   Use setModelAssetName() if the custom TF Model is built in as an asset (AS only).
-                //   Use setModelFileName() if you have downloaded a custom team model to the Robot Controller.
-                //.setModelAssetName(TFOD_MODEL_ASSET)
-                //.setModelFileName(TFOD_MODEL_FILE)
-
-                // The following default settings are available to un-comment and edit as needed to
-                // set parameters for custom models.
-                //.setModelLabels(LABELS)
-                //.setIsModelTensorFlow2(true)
-                //.setIsModelQuantized(true)
-                //.setModelInputSize(300)
-                //.setModelAspectRatio(16.0 / 9.0)
-
+                .setModelAssetName(TFOD_MODEL_ASSET)
+                .setModelLabels(LABELS)
                 .build();
 
         // Create the vision portal by using a builder.
@@ -100,33 +100,11 @@ public class TensorFlowObjectDetection extends LinearOpMode {
             builder.setCamera(BuiltinCameraDirection.BACK);
         }
 
-        // Choose a camera resolution. Not all cameras support all resolutions.
-        //builder.setCameraResolution(new Size(640, 480));
-
-        // Enable the RC preview (LiveView).  Set "false" to omit camera monitoring.
         builder.enableLiveView(true);
-
-        // Set the stream format; MJPEG uses less bandwidth than default YUY2.
-        //builder.setStreamFormat(VisionPortal.StreamFormat.YUY2);
-
-        // Choose whether or not LiveView stops if no processors are enabled.
-        // If set "true", monitor shows solid orange screen if no processors enabled.
-        // If set "false", monitor shows camera view without annotations.
-        //builder.setAutoStopLiveView(false);
-
-        // Set and enable the processor.
         builder.addProcessor(tfod);
 
-        // Build the Vision Portal, using the above settings.
         visionPortal = builder.build();
-
-        // Set confidence threshold for TFOD recognitions, at any time.
-        //tfod.setMinResultConfidence(0.75f);
-
-        // Disable or re-enable the TFOD processor at any time.
-        //visionPortal.setProcessorEnabled(tfod, true);
-
-    }   // end method initTfod()
+    }
 
     // Telemetry of the Object
     private void telemetryTfod() {
@@ -145,6 +123,37 @@ public class TensorFlowObjectDetection extends LinearOpMode {
             telemetry.addData("- Size", "%.0f x %.0f", recognition.getWidth(), recognition.getHeight());
         }   
 
+    }
+
+    public void moveRobot(double drive, double strafe, double rotate) {
+        /* positive values of drive move forward, negative moves back (drive)
+           positive values of strafe move sideways to the right, negative moves left (strafe)
+           positive values of rotate rotate clockwise, negative rotate counterclockwise (twist)
+        */
+        // Calculate wheel powers.
+        double leftFrontPower = drive + strafe + rotate;
+        double rightFrontPower = drive - strafe - rotate;
+        double leftBackPower = drive - strafe + rotate;
+        double rightBackPower = drive + strafe - rotate;
+
+        // Normalize wheel powers to be less than 1.0
+        double max = Math.max(Math.abs(leftFrontPower), Math.abs(rightFrontPower));
+        max = Math.max(max, Math.abs(leftBackPower));
+        max = Math.max(max, Math.abs(rightBackPower));
+
+        if (max > 1.0) {
+            leftFrontPower /= max;
+            rightFrontPower /= max;
+            leftBackPower /= max;
+            rightBackPower /= max;
+        }
+
+        // Send powers to the wheels.
+        fL.setPower(leftFrontPower);
+        fR.setPower(rightFrontPower);
+        bL.setPower(leftBackPower);
+        bR.setPower(rightBackPower);
+        sleep(10);
     }
 
 }

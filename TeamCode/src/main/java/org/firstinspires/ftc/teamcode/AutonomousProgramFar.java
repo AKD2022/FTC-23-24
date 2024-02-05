@@ -91,7 +91,7 @@ public class AutonomousProgramFar extends LinearOpMode
      * The variable to store our instance of the TensorFlow Object Detection processor.
      */
     private TfodProcessor tfod;
-    final String TFOD_MODEL_FILE = "redBlueDuploFar.tflite";
+    final String TFOD_MODEL_FILE = "redBlueDuploFar.tflite"; // change later
     public static final String[] LABELS = {"blueCone", "redCone"};
 
     IMU imu;
@@ -136,7 +136,7 @@ public class AutonomousProgramFar extends LinearOpMode
 
         // init IMU
         imu = hardwareMap.get(IMU.class, "imu");
-        double targetYaw = 0;
+        double targetRotate = 0;
 
         RevHubOrientationOnRobot.LogoFacingDirection logoDirection = RevHubOrientationOnRobot.LogoFacingDirection.DOWN; // Which way the logo of the control & expansion hub is
         RevHubOrientationOnRobot.UsbFacingDirection  usbDirection  = RevHubOrientationOnRobot.UsbFacingDirection.FORWARD; // Which was the usb is on the control hub
@@ -260,7 +260,7 @@ public class AutonomousProgramFar extends LinearOpMode
                 else {
                     moveRobot(0, 0, 0);
                     visionPortal.setProcessorEnabled(tfod,false);  // turn off TensorFlow
-                    currentStep = 6;  // turn to face front wall
+                    currentStep = 10;  // turn to backdrop
                     runtime.reset();  // start timer for step 6
                 }
             }
@@ -517,16 +517,16 @@ public class AutonomousProgramFar extends LinearOpMode
      * Positive Y is strafe left
      * Positive Yaw is counter-clockwise
      */
-    public void moveRobot(double x, double y, double yaw) {
-        /* positive values of x move forward
-           positive values of y move sideways to the right 
-           positive values of yaw rotate clockwise
+    public void moveRobot(double drive, double strafe, double rotate) {
+        /* positive values of drive move forward, negative moves back (drive)
+           positive values of strafe move sideways to the right, negative moves left (strafe)
+           positive values of rotate rotate clockwise, negative rotate counterclockwise (twist)
         */
         // Calculate wheel powers.
-        double leftFrontPower    =  x -y -yaw;
-        double rightFrontPower   =  x +y +yaw;
-        double leftBackPower     =  x +y -yaw;
-        double rightBackPower    =  x -y +yaw;
+        double leftFrontPower = drive + strafe + rotate;
+        double rightFrontPower = drive - strafe - rotate;
+        double leftBackPower = drive - strafe + rotate;
+        double rightBackPower = drive + strafe - rotate;
 
         // Normalize wheel powers to be less than 1.0
         double max = Math.max(Math.abs(leftFrontPower), Math.abs(rightFrontPower));

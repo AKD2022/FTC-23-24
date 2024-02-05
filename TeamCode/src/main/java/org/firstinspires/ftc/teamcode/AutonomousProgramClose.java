@@ -260,7 +260,7 @@ public class AutonomousProgramClose extends LinearOpMode
                 else {
                     moveRobot(0, 0, 0);
                     visionPortal.setProcessorEnabled(tfod,false);  // turn off TensorFlow
-                    currentStep = 6;  // turn to face front wall
+                    currentStep = 10;  // turn to face front wall
                     runtime.reset();  // start timer for step 6
                 }
             }
@@ -376,13 +376,13 @@ public class AutonomousProgramClose extends LinearOpMode
             if (currentStep==31) {
                 double elapsedTime = runtime.milliseconds();
                 double estimatedDistance = 0.2 * elapsedTime;
-                if (estimatedDistance <= DESIRED_DISTANCE) {
+               // if (estimatedDistance <= DESIRED_DISTANCE) {
                     moveRobot(0, 0, 0);
                     currentStep=32;  // deploy arm
-                }
-                else {
+                //}
+                //else {
                     moveRobot(0.2, 0, 0);  // move forward to the backboard
-                }
+                //}
             }
 
             // STEP 32 deploy arm with yellow pixel to backdrop
@@ -517,16 +517,16 @@ public class AutonomousProgramClose extends LinearOpMode
      * Positive Y is strafe left
      * Positive Yaw is counter-clockwise
      */
-    public void moveRobot(double x, double y, double yaw) {
-        /* positive values of x move forward
-           positive values of y move sideways to the right 
-           positive values of yaw rotate clockwise
+    public void moveRobot(double drive, double strafe, double rotate) {
+        /* positive values of drive move forward, negative moves back (drive)
+           positive values of strafe move sideways to the right, negative moves left (strafe)
+           positive values of rotate rotate clockwise, negative rotate counterclockwise (twist)
         */
         // Calculate wheel powers.
-        double leftFrontPower    =  x -y -yaw;
-        double rightFrontPower   =  x +y +yaw;
-        double leftBackPower     =  x +y -yaw;
-        double rightBackPower    =  x -y +yaw;
+        double leftFrontPower = drive + strafe + rotate;
+        double rightFrontPower = drive - strafe - rotate;
+        double leftBackPower = drive - strafe + rotate;
+        double rightBackPower = drive + strafe - rotate;
 
         // Normalize wheel powers to be less than 1.0
         double max = Math.max(Math.abs(leftFrontPower), Math.abs(rightFrontPower));
@@ -547,7 +547,6 @@ public class AutonomousProgramClose extends LinearOpMode
         bR.setPower(rightBackPower);
         sleep(10);
     }
-
     /*
      Manually set the camera gain and exposure.
      This can only be called AFTER calling initAprilTag(), and only works for Webcams;
