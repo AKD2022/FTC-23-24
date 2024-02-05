@@ -333,7 +333,7 @@ public class AutonomousProgramFar extends LinearOpMode
                     imuTurn(45); // Turn towards the backdrop (change if needed)
                     if(targetFound && (Math.abs(desiredTag.ftcPose.yaw - 45) < 7)){
                         moveRobot(0, 0, 0); // stop any moves
-                        currentStep = 11; // drive to backdrop
+                        currentStep = 20; // drive to backdrop
                         DESIRED_TAG_ID = backdropTagID;
                         setManualExposure(6, 250);
                         runtime.reset();  // start timer for step 11
@@ -341,11 +341,36 @@ public class AutonomousProgramFar extends LinearOpMode
                 }
                 else {
                     moveRobot(0, 0, 0); // stop any moves
-                    currentStep = 11; // drive to backdrop
+                    currentStep = 20; // drive to backdrop
                     DESIRED_TAG_ID = backdropTagID;
                     setManualExposure(6, 250);
                     runtime.reset();  // start timer for step 11
                 }
+            }
+
+
+            //Drive UP
+            if (currentStep == 20) {
+                if (runtime.milliseconds() < 500) {
+                    moveRobot(0, 0, 0); // Adjust Later
+                    currentStep = 21;
+                } else {
+                    moveRobot(0, 0, 0); // Make sure the robot doesn't move
+                    // Program Ends, don't do anything
+                }
+            }
+
+            //Drive Side
+            if (currentStep == 21) {
+                moveRobot(0, 0, 0); // Adjust Later
+                currentStep = 22;
+            }
+
+
+            // Drive back up through the truss
+            if (currentStep == 22) {
+                moveRobot(0, 0, 0); // Adjust Later
+                currentStep = 11;
             }
 
             // STEP 11 drive to backdrop April Tag
