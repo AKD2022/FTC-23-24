@@ -69,6 +69,8 @@ public class AutonomousProgramClose extends LinearOpMode
     final double MAX_AUTO_STRAFE= 0.75;   //  Clip the approach speed to this max value (adjust for your robot)
     final double MAX_AUTO_TURN  = 0.5;   //  Clip the turn speed to this max value (adjust for your robot)
 
+    private int turnAngle;
+
     private DcMotor fL = null;
     private DcMotor fR = null;
     private DcMotor bL = null;
@@ -184,6 +186,7 @@ public class AutonomousProgramClose extends LinearOpMode
                                 propLocation = "left";
                                 backdropTagID = 1;
                                 propFound = true;
+                                turnAngle = 20; // Adjust Later
                                 runtime.reset();  // start timer for step 2
                                 break;
                             }
@@ -192,6 +195,7 @@ public class AutonomousProgramClose extends LinearOpMode
                                 propLocation = "centre";
                                 backdropTagID = 2;
                                 propFound = true;
+                                turnAngle = 15; // adjust later;
                                 runtime.reset();  // start timer for step 3
                                 break;
                             }
@@ -200,6 +204,7 @@ public class AutonomousProgramClose extends LinearOpMode
                                 propLocation = "right";
                                 backdropTagID = 3;
                                 propFound = true;
+                                turnAngle = 25; // adjust later;
                                 runtime.reset();  // start timer for step 4
                                 break;
                             }
@@ -218,6 +223,7 @@ public class AutonomousProgramClose extends LinearOpMode
             if (currentStep==2) {
                 if (runtime.milliseconds() < 500) {
                     moveRobot(0, 0, 0); // Moving the robot (change later)
+                    currentStep = 5;
                 }
                 else {
                     moveRobot(0, 0, 0);
@@ -230,6 +236,7 @@ public class AutonomousProgramClose extends LinearOpMode
             if (currentStep==3) {
                 if (runtime.milliseconds() < 1500) {
                     moveRobot(0, 0, 0); // Moving the robot (change later)
+                    currentStep = 5;
                 }
                 else {
                     moveRobot(0, 0, 0);
@@ -242,6 +249,7 @@ public class AutonomousProgramClose extends LinearOpMode
             if (currentStep==4) {
                 if (runtime.milliseconds() < 500) {
                     moveRobot(0, 0, 0); // Moving the robot (change later)
+                    currentStep = 5;
                 }
                 else {
                     moveRobot(0, 0, 0);
@@ -330,7 +338,11 @@ public class AutonomousProgramClose extends LinearOpMode
             // STEP 10 turn to face backdrop
             if (currentStep==10) {
                 if (runtime.milliseconds() < 1250) {
-                    imuTurn(45); // Angle of turning to the backdrop (change as needed)
+                    imuTurn(turnAngle);
+
+                    telemetry.addData("Turn Angle: ", turnAngle);
+                    telemetry.update(); // can remove these lines later
+
                     if(targetFound && (Math.abs(desiredTag.ftcPose.yaw - 45) < 7)){
                         moveRobot(0, 0, 0); // stop any moves
                         currentStep = 11; // drive to backdrop
