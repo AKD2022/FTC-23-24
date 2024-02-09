@@ -7,6 +7,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
+
+import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.ExposureControl;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.GainControl;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
@@ -24,116 +26,74 @@ import java.util.concurrent.TimeUnit;
 
 @Autonomous(name="AutonomousSimplifiedClose")
 public class AutonomousSimplifiedClose extends LinearOpMode{
-    final double DESIRED_DISTANCE = 12; //  this is how close the camera should get to the target (inches)
-    final double SPEED_GAIN  =  0.02  ;   // 0.02 Forward Speed Control "Gain". eg: Ramp up to 50% power at a 25 inch error.   (0.50 / 25.0)
-    final double STRAFE_GAIN =  0.015 ;   // 0.015 Strafe Speed Control "Gain".  eg: Ramp up to 25% power at a 25 degree Yaw error.   (0.25 / 25.0)
-    final double TURN_GAIN   =  0.02  ;   // 0.01 Turn Control "Gain".  eg: Ramp up to 25% power at a 25 degree error. (0.25 / 25.0)
+    private static final boolean USE_WEBCAM = true;  // true for webcam, false for phone camera
 
-    final double MAX_AUTO_SPEED = 0.75;   //  Clip the approach speed to this max value (adjust for your robot)
-    final double MAX_AUTO_STRAFE= 0.75;   //  Clip the approach speed to this max value (adjust for your robot)
-    final double MAX_AUTO_TURN  = 0.5;   //  Clip the turn speed to this max value (adjust for your robot)
+    private DcMotor leftSlide;
+    private DcMotor rightSlide;
 
-    private int turnAngle;
-    private Odometry odometryPods;
+    private DcMotor fL, fR, bL, bR;
+    private static final String TFOD_MODEL_FILE = "model_20240208_132717.tflite";
+    //private static final String TFOD_MODEL_ASSET_2 = "model_20240208_132928.tflite";
+    private static final String[] LABELS = {
+            "bluePipe",
+            "redPipe"
+    };
 
-    private DcMotor fL = null;
-    private DcMotor fR = null;
-    private DcMotor bL = null;
-    private DcMotor bR = null;
-
-    private DcMotor odometryPodRight;
-    private DcMotor odometryPodLeft;
-    private DcMotor odometryPodCenter;
-    private static final boolean USE_WEBCAM = true;
-    private int DESIRED_TAG_ID = 10;     // 584 Choose the tag you want to approach or set to -1 for ANY tag.
-    private int backdropTagID = 0;
-    private VisionPortal visionPortal;               // Used to manage the video source.
-    private AprilTagProcessor aprilTag;              // Used for managing the AprilTag detection process.
-    private AprilTagDetection desiredTag = null;     // Used to hold the data for a detected AprilTag
-    private int     myExposure  ;
-    private int     myGain      ;
-    private boolean targetFound  = false;    // Set to true when an AprilTag target is detected
-
-    private WebcamName webcam1;
-
-    private ElapsedTime runtime = new ElapsedTime();
-
-    /**
-     * The variable to store our instance of the TensorFlow Object Detection processor.
-     */
+    // Tensorflow Object Processor
     private TfodProcessor tfod;
-    final String TFOD_MODEL_FILE = "redBlueDuploFar.tflite";
-    public static final String[] LABELS = {"blueCone", "redCone"};
 
+    // Vision Portal
+    private VisionPortal visionPortal;
 
-    // servo variables
-    static final double INCREMENT   = 0.08;     // .01 amount to slew servo each CYCLE_MS cycle
-    static final int    CYCLE_MS    =   50;     // period of each cycle
-    static final double MAX_POS     =  1.0;     // Maximum rotational position
-    static final double MIN_POS     =  0.25;     // 0.0 Minimum rotational position
-
-    // Define class members
-    Servo armServo, clawLeft, clawRight;
-    private DcMotor leftSlide, rightSlide;
-
-    private int stepNumber;
-
-
-    @Override public void runOpMode() {
-        boolean propFound      = false;    // set to true when Team Prop found on spike mark
-        String propLocation   = "";        // set to left, centre, or right
-        double  drive           = 0;        // Desired forward power/speed (-1 to +1)
-        double  strafe          = 0;        // Desired strafe power/speed (-1 to +1)
-        double  turn            = 0;        // Desired turning power/speed (-1 to +1)
-        int     currentStep;
-
+    @Override
+    public void runOpMode() {
+        initTfod();
         fL = hardwareMap.get(DcMotor.class, "lF");
         fR = hardwareMap.get(DcMotor.class, "rF");
         bL  = hardwareMap.get(DcMotor.class, "lB");
         bR = hardwareMap.get(DcMotor.class, "rB");
+
 
         fL.setDirection(DcMotor.Direction.FORWARD);
         fR.setDirection(DcMotor.Direction.REVERSE);
         bL.setDirection(DcMotor.Direction.FORWARD);
         bR.setDirection(DcMotor.Direction.REVERSE);
 
-        // Wait for driver to press start
-        telemetry.addData("Camera preview on/off", "3 dots, Camera Stream");
-        telemetry.addData(">", "Touch Play to start OpMode");
-        telemetry.update();
-
-        visionPortal.setActiveCamera(webcam1);
-
-        /* Servo Initialization */
-        armServo = hardwareMap.get(Servo.class, "armServo");
-        clawLeft = hardwareMap.get(Servo.class, "rightClawServo");
-        clawRight = hardwareMap.get(Servo.class, "leftClawServo");
-
-        /* Slide Initialization */
         leftSlide = hardwareMap.get(DcMotor.class, "leftSlide");
         rightSlide = hardwareMap.get(DcMotor.class, "rightSlide");
 
+        // Wait for the DS start button to be touched.
+        telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
+        telemetry.addData(">", "Touch Play to start OpMode");
+        telemetry.update();
         waitForStart();
 
-        visionPortal.stopLiveView();  // turn off liveView while robot moving
-        runtime.reset();  // start timer for step 1
+        if (opModeIsActive()) {
+            while (opModeIsActive()) {
 
-        while (opModeIsActive()) {
-            targetFound = false;
-            desiredTag  = null;
+                telemetryTfod();
 
-            List<Recognition> currentRecognitions = tfod.getRecognitions();
-            for (Recognition recognition : currentRecognitions) {
-                
+
+                // Push telemetry to the Driver Station.
+                telemetry.update();
+                // If it finds the cone, it should move forward
+                List<Recognition> currentRecognitions = tfod.getRecognitions();
+                for (Recognition recognition : currentRecognitions) {
+                    //moveRobot(10, 0, 0);
+                }
+
+                // Share the CPU.
+                sleep(20);
             }
         }
+
+        // Save more CPU resources when camera is no longer needed.
+        visionPortal.close();
+
     }
 
-
-    // Variables
-    private void initVisionPortal() {
-        webcam1 = hardwareMap.get(WebcamName.class, "Webcam");
-
+    //
+    private void initTfod() {
 
         // Create the TensorFlow processor by using a builder.
         tfod = new TfodProcessor.Builder()
@@ -141,71 +101,124 @@ public class AutonomousSimplifiedClose extends LinearOpMode{
                 .setModelLabels(LABELS)
                 .build();
 
-
-        // Create the AprilTag processor by using a builder.
-        aprilTag = new AprilTagProcessor.Builder()
-                .build();
-
         // Create the vision portal by using a builder.
-        visionPortal = new VisionPortal.Builder()
-                .setCamera(webcam1)
-                .addProcessor(aprilTag)
-                .addProcessor(tfod)
-                .build();
+        VisionPortal.Builder builder = new VisionPortal.Builder();
+
+        // Set the camera (webcam vs. built-in RC phone camera).
+        if (USE_WEBCAM) {
+            builder.setCamera(hardwareMap.get(WebcamName.class, "Webcam"));
+        } else {
+            builder.setCamera(BuiltinCameraDirection.BACK);
+        }
+
+        builder.enableLiveView(true);
+        builder.addProcessor(tfod);
+
+        visionPortal = builder.build();
     }
 
-    public void aprilTagDrive(int targetTag, double targetRange, double targetBearing, double targetYaw) {
-        double drive, strafe, turn;
-        List<AprilTagDetection> currentDetections = aprilTag.getDetections();
-        targetFound = false;
-        for (AprilTagDetection detection : currentDetections) {
-            if ((detection.metadata != null) && (detection.id == targetTag)){
-                targetFound = true;
-                desiredTag = detection;
-                break;  // don't look any further.
+    private ElapsedTime runtime = new ElapsedTime();
+    private ElapsedTime totalRuntime = new ElapsedTime();
+    boolean objectFound = false;
+    private void telemetryTfod() {
+        List<Recognition> currentRecognitions = tfod.getRecognitions();
+        telemetry.addData("# Objects Detected", currentRecognitions.size());
+
+        if (!objectFound) {
+            // Turn left
+            moveRobot(0, 0, 45); // Turn left (adjust as needed)
+
+            // Now iterate through recognitions to find the object's position
+            while (System.currentTimeMillis() - runtime.milliseconds() < 2000) {
+                for (Recognition recognitionLeft : currentRecognitions) {
+                    if (recognitionLeft != null) {
+                        double x = (recognitionLeft.getLeft() + recognitionLeft.getRight()) / 2;
+                        double y = (recognitionLeft.getTop() + recognitionLeft.getBottom()) / 2;
+
+                        telemetry.addData("", " ");
+                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognitionLeft.getLabel(), recognitionLeft.getConfidence() * 100);
+                        telemetry.addData("- Position", "%.0f / %.0f", x, y);
+                        telemetry.addData("- Size", "%.0f x %.0f", recognitionLeft.getWidth(), recognitionLeft.getHeight());
+
+                        objectFound = true;
+
+                        // Run Autonomous functions for on the left.
+                        moveRobot(20, 0, 0); // Drive towards spike mark
+                        moveRobot(0, 0, 45); // Turn to face spikeMark
+
+                        return; // Exit the function
+                    }
+                }
             }
-        }
 
-        if (targetFound) {
-            // Determine heading, range and Yaw (tag image rotation) error so we can use them to control the robot automatically.
-            double  rangeError      = (desiredTag.ftcPose.range - targetRange);
-            double  headingError    = desiredTag.ftcPose.bearing - targetBearing;
-            double  yawError        = desiredTag.ftcPose.yaw - targetYaw;
 
-            //    if ((rangeError < 4) && (Math.abs(headingError) < 6) && (Math.abs(yawError) < 6)) {
-            //        drive = 0;
-            //        turn = 0;
-            //        strafe = 0;
-            //        currentStep = 31;  // drive to backdrop
-            //    }
-            //    else {
-            // Use the speed and turn "gains" to calculate how we want the robot to move.
-            drive  = Range.clip(rangeError * SPEED_GAIN, -MAX_AUTO_SPEED, MAX_AUTO_SPEED);
-            turn   = Range.clip(headingError * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN) ;
-            strafe = Range.clip(-yawError * STRAFE_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE);
-            telemetry.addData("Auto","Drive %5.2f, Strafe %5.2f, Turn %5.2f ", drive, strafe, turn);
+            // Turn right
+            moveRobot(0, 0, 180); // Turn right (adjust as needed)
+            runtime.reset();
+
+            // Now iterate through recognitions to find the object's position
+            while (System.currentTimeMillis() - runtime.milliseconds() < 2000) {
+                for (Recognition recognitionRight : currentRecognitions) {
+                    if (recognitionRight != null) {
+                        double x = (recognitionRight.getLeft() + recognitionRight.getRight()) / 2;
+                        double y = (recognitionRight.getTop() + recognitionRight.getBottom()) / 2;
+
+                        telemetry.addData("", " ");
+                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognitionRight.getLabel(), recognitionRight.getConfidence() * 100);
+                        telemetry.addData("- Position", "%.0f / %.0f", x, y);
+                        telemetry.addData("- Size", "%.0f x %.0f", recognitionRight.getWidth(), recognitionRight.getHeight());
+
+                        objectFound = true;
+                        moveRobot(100, 0, 0);
+                        return; // Exit the function
+                    }
+                }
+            }
+
+
+            // Turn to the center
+            moveRobot(0, 0, 45); // Turn to the center
+            runtime.reset();
+
+            // Now iterate through recognitions to find the object's position
+            while (System.currentTimeMillis() - runtime.milliseconds() < 2000) {
+                for (Recognition recognition : currentRecognitions) {
+                    if (recognition != null) {
+                        double x = (recognition.getLeft() + recognition.getRight()) / 2;
+                        double y = (recognition.getTop() + recognition.getBottom()) / 2;
+
+                        telemetry.addData("", " ");
+                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognition.getLabel(), recognition.getConfidence() * 100);
+                        telemetry.addData("- Position", "%.0f / %.0f", x, y);
+                        telemetry.addData("- Size", "%.0f x %.0f", recognition.getWidth(), recognition.getHeight());
+
+                        objectFound = true;
+                        moveRobot(100, 0, 0);
+                        return; // Exit the function
+                    }
+                }
+            }
+
+            // If object is not found within 2 seconds, proceed with next action
+            // Go to Parking
+        } else {
+            // Go to Parking
         }
-        else {
-            drive=0;  strafe=0; turn=0;
-        }
-        // Apply desired axes motions to the drivetrain.
-        moveRobot(drive, strafe, turn);
     }
+
+
 
     public void moveRobot(double drive, double strafe, double rotate) {
-        // Constants for the conversion factor from encoder ticks to distance
-        final double TICKS_PER_REV = 1440; // Assuming a motor with 1440 ticks per revolution
-        final double WHEEL_DIAMETER_INCHES = 4; // Replace with your wheel diameter in inches
-        final double GEAR_RATIO = 1; // Replace with your gear ratio
-        final double WHEEL_CIRCUMFERENCE = Math.PI * WHEEL_DIAMETER_INCHES; // Circumference = π * diameter
+        final double TICKS_PER_REV = 1440;
+        final double WHEEL_DIAMETER_INCHES = 4;
+        final double GEAR_RATIO = 1;
+        final double WHEEL_CIRCUMFERENCE = Math.PI * WHEEL_DIAMETER_INCHES;
 
-        // Calculate motor powers based on drive, strafe, and rotate values
         double powerFL = drive - strafe + rotate;
         double powerFR = drive + strafe + rotate;
         double powerBL = drive + strafe - rotate;
         double powerBR = drive - strafe - rotate;
 
-        // Convert power values to encoder ticks
         int ticksFL = (int) (powerFL * TICKS_PER_REV / (2 * Math.PI * GEAR_RATIO * WHEEL_CIRCUMFERENCE));
         int ticksFR = (int) (powerFR * TICKS_PER_REV / (2 * Math.PI * GEAR_RATIO * WHEEL_CIRCUMFERENCE));
         int ticksBL = (int) (powerBL * TICKS_PER_REV / (2 * Math.PI * GEAR_RATIO * WHEEL_CIRCUMFERENCE));
@@ -229,38 +242,4 @@ public class AutonomousSimplifiedClose extends LinearOpMode{
         bL.setPower(Math.abs(powerBL));
         bR.setPower(Math.abs(powerBR));
     }
-    private void setManualExposure(int exposureMS, int gain) {
-        // Wait for the camera to be open, then use the controls
-
-        if (visionPortal == null) {
-            return;
-        }
-
-        // Make sure camera is streaming before we try to set the exposure controls
-        if (visionPortal.getCameraState() != VisionPortal.CameraState.STREAMING) {
-            telemetry.addData("Camera", "Waiting");
-            telemetry.update();
-            while (!isStopRequested() && (visionPortal.getCameraState() != VisionPortal.CameraState.STREAMING)) {
-                sleep(20);
-            }
-            telemetry.addData("Camera", "Ready");
-            telemetry.update();
-        }
-
-        // Set camera controls unless we are stopping.
-        if (!isStopRequested())
-        {
-            ExposureControl exposureControl = visionPortal.getCameraControl(ExposureControl.class);
-            if (exposureControl.getMode() != ExposureControl.Mode.Manual) {
-                exposureControl.setMode(ExposureControl.Mode.Manual);
-                sleep(50);
-            }
-            exposureControl.setExposure((long)exposureMS, TimeUnit.MILLISECONDS);
-            sleep(20);
-            GainControl gainControl = visionPortal.getCameraControl(GainControl.class);
-            gainControl.setGain(gain);
-            sleep(20);
-        }
-    }
-
 }
