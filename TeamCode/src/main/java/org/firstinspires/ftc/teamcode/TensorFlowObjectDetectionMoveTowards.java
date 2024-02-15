@@ -136,6 +136,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
     private ElapsedTime runtime = new ElapsedTime();
     private ElapsedTime timeToMove = new ElapsedTime();
+    int num = 0;
     boolean objectFound = false;
     private void telemetryTfod() {
         List<Recognition> currentRecognitions = tfod.getRecognitions();
@@ -146,53 +147,35 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
             runtime.reset();
 
             while (runtime.milliseconds() < 10000) {
-                for (Recognition recognitionLeft : currentRecognitions) {
-                    if (recognitionLeft != null) {
-                        double x = (recognitionLeft.getLeft() + recognitionLeft.getRight()) / 2;
-                        double y = (recognitionLeft.getTop() + recognitionLeft.getBottom()) / 2;
+                for (Recognition recognition : currentRecognitions) {
+                    if (recognition != null) {
+                        double x = (recognition.getLeft() + recognition.getRight()) / 2;
+                        double y = (recognition.getTop() + recognition.getBottom()) / 2;
 
                         telemetry.addData("", " ");
-                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognitionLeft.getLabel(), recognitionLeft.getConfidence() * 100);
+                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognition.getLabel(), recognition.getConfidence() * 100);
                         telemetry.addData("- Position", "%.0f / %.0f", x, y);
-                        telemetry.addData("- Size", "%.0f x %.0f", recognitionLeft.getWidth(), recognitionLeft.getHeight());
+                        telemetry.addData("- Size", "%.0f x %.0f", recognition.getWidth(), recognition.getHeight());
 
                         objectFound = true;
-                        centerSpikeMark();
-
-                        return; // Exit the function
+                        num = 1; // center
+                        break;
                     }
+                }
+
+                if (objectFound) {
+                    num = 1;
+                    break;
                 }
             }
 
 
             // Turn left
-            moveRobot(0, 0, -45);
-            runtime.reset();
-
-            // Now iterate through recognitions to find the object's position
-            while (runtime.milliseconds() < 10000) {
-                for (Recognition recognitionRight : currentRecognitions) {
-                    if (recognitionRight != null) {
-                        double x = (recognitionRight.getLeft() + recognitionRight.getRight()) / 2;
-                        double y = (recognitionRight.getTop() + recognitionRight.getBottom()) / 2;
-
-                        telemetry.addData("", " ");
-                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognitionRight.getLabel(), recognitionRight.getConfidence() * 100);
-                        telemetry.addData("- Position", "%.0f / %.0f", x, y);
-                        telemetry.addData("- Size", "%.0f x %.0f", recognitionRight.getWidth(), recognitionRight.getHeight());
-
-                        objectFound = true;
-                        leftSpikeMark();
-
-
-                        return; // Exit the function
-                    }
-                }
+            timeToMove.reset();
+            if (timeToMove.milliseconds() < 100) {
+                moveRobot(0, 0, -45);
             }
-
-
-            // Turn to the right
-            moveRobot(0, 0, 90);
+            timeToMove.reset();
             runtime.reset();
 
             // Now iterate through recognitions to find the object's position
@@ -208,14 +191,59 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
                         telemetry.addData("- Size", "%.0f x %.0f", recognition.getWidth(), recognition.getHeight());
 
                         objectFound = true;
-                        rightSpikeMark();
-
-                        return; // Exit the function
+                        num = 2; // left
+                        break;
                     }
+                }
+
+                if (objectFound) {
+                    num = 2;
+                    break;
+                }
+            }
+
+
+            // Turn to the right
+            timeToMove.reset();
+            if (timeToMove.milliseconds() < 100) {
+                moveRobot(0, 0, 180);
+            }
+            timeToMove.reset();
+            runtime.reset();
+
+            // Now iterate through recognitions to find the object's position
+            while (runtime.milliseconds() < 10000) {
+                for (Recognition recognition : currentRecognitions) {
+                    if (recognition != null) {
+                        double x = (recognition.getLeft() + recognition.getRight()) / 2;
+                        double y = (recognition.getTop() + recognition.getBottom()) / 2;
+
+                        telemetry.addData("", " ");
+                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognition.getLabel(), recognition.getConfidence() * 100);
+                        telemetry.addData("- Position", "%.0f / %.0f", x, y);
+                        telemetry.addData("- Size", "%.0f x %.0f", recognition.getWidth(), recognition.getHeight());
+
+                        objectFound = true;
+                        num = 3; // right
+                        break;
+                    }
+                }
+
+                if (objectFound) {
+                    num = 3;
+                    break;
                 }
             }
         } else {
             // Go to Parking
+        }
+
+        if (objectFound && num == 3) {
+            rightSpikeMark();
+        } else if (objectFound && num == 2) {
+            leftSpikeMark();
+        } else if (objectFound && num == 1) {
+            centerSpikeMark();
         }
     }
 
@@ -288,11 +316,256 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
     }
 
     private void leftSpikeMark() {
+        ElapsedTime centerElapsedTime = new ElapsedTime();
+        centerElapsedTime.reset();
 
+        /* Move Forward */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            moveRobot(1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Open claw with purple pixel */
+        while (centerElapsedTime.milliseconds() < 500) {
+            leftClaw.setPosition(0.65);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Close Claw */
+        while (centerElapsedTime.milliseconds() < 500) {
+            leftClaw.setPosition(0.35);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Turn towards backboard */
+        while (centerElapsedTime.milliseconds() < 200) {
+            moveRobot(0, 0, 150);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Go to the left column */
+        while (centerElapsedTime.milliseconds() < 50) {
+            moveRobot(0, -1, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Go Towards the backboard */
+        while (centerElapsedTime.milliseconds() < 1200) {
+            moveRobot(1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move the Viper Slide up */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            /* Setting the height that it needs to go to */
+            leftSlide.setTargetPosition(3000);
+            rightSlide.setTargetPosition(3000);
+
+            /* Set the RUN TO POSITION so it runs to 3000 */
+            leftSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            rightSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            /* Setting the power of the slides */
+            leftSlide.setPower(0.5);
+            rightSlide.setPower(0.5);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move Arm */
+        while (centerElapsedTime.milliseconds() < 500) {
+            arm.setDirection(Servo.Direction.REVERSE);
+            arm.setPosition(0.75); // Change to what is in the code
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Open Claw to drop the other pixel in */
+        while (centerElapsedTime.milliseconds() < 500) {
+            rightClaw.setPosition(0.75);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Close Claw */
+        while (centerElapsedTime.milliseconds() < 500) {
+            rightClaw.setPosition(0.35);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Reset Arm */
+        while (centerElapsedTime.milliseconds() < 500) {
+            arm.setDirection(Servo.Direction.REVERSE);
+            arm.setPosition(0.15); // Change to what is in the code
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move the Viper Slide Back Down */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            /* Setting the height that it needs to go to */
+            leftSlide.setTargetPosition(150);
+            rightSlide.setTargetPosition(150);
+
+            /* Set the RUN TO POSITION so it runs to 3000 */
+            leftSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            rightSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            /* Setting the power of the slides */
+            leftSlide.setPower(0.5);
+            rightSlide.setPower(0.5);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Strafe towards the Parking */
+        while (centerElapsedTime.milliseconds() < 750) {
+            moveRobot(0, 1, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move Back A bit */
+        while (centerElapsedTime.milliseconds() < 100) {
+            moveRobot(-1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+        moveRobot(0, 0, 0);
     }
 
-    private void rightSpikeMark() {
 
+    private void rightSpikeMark() {
+        ElapsedTime centerElapsedTime = new ElapsedTime();
+        centerElapsedTime.reset();
+
+        /* Move Forward */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            moveRobot(1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Open claw with purple pixel */
+        while (centerElapsedTime.milliseconds() < 500) {
+            leftClaw.setPosition(0.65);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Close Claw */
+        while (centerElapsedTime.milliseconds() < 500) {
+            leftClaw.setPosition(0.35);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Turn towards backboard */
+        while (centerElapsedTime.milliseconds() < 200) {
+            moveRobot(0, 0, 30);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Go to the right column */
+        while (centerElapsedTime.milliseconds() < 50) {
+            moveRobot(0, 1, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Go Towards the backboard */
+        while (centerElapsedTime.milliseconds() < 750) {
+            moveRobot(1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move the Viper Slide up */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            /* Setting the height that it needs to go to */
+            leftSlide.setTargetPosition(3000);
+            rightSlide.setTargetPosition(3000);
+
+            /* Set the RUN TO POSITION so it runs to 3000 */
+            leftSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            rightSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            /* Setting the power of the slides */
+            leftSlide.setPower(0.5);
+            rightSlide.setPower(0.5);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move Arm */
+        while (centerElapsedTime.milliseconds() < 500) {
+            arm.setDirection(Servo.Direction.REVERSE);
+            arm.setPosition(0.75); // Change to what is in the code
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Open Claw to drop the other pixel in */
+        while (centerElapsedTime.milliseconds() < 500) {
+            rightClaw.setPosition(0.75);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Close Claw */
+        while (centerElapsedTime.milliseconds() < 500) {
+            rightClaw.setPosition(0.35);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Reset Arm */
+        while (centerElapsedTime.milliseconds() < 500) {
+            arm.setDirection(Servo.Direction.REVERSE);
+            arm.setPosition(0.15); // Change to what is in the code
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move the Viper Slide Back Down */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            /* Setting the height that it needs to go to */
+            leftSlide.setTargetPosition(150);
+            rightSlide.setTargetPosition(150);
+
+            /* Set the RUN TO POSITION so it runs to 3000 */
+            leftSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            rightSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            /* Setting the power of the slides */
+            leftSlide.setPower(0.5);
+            rightSlide.setPower(0.5);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Strafe towards the Parking */
+        while (centerElapsedTime.milliseconds() < 750) {
+            moveRobot(0, 1, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move Back A bit */
+        while (centerElapsedTime.milliseconds() < 100) {
+            moveRobot(-1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+        moveRobot(0, 0, 0);
     }
 
     private void centerSpikeMark() {
@@ -322,7 +595,14 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
         /* Turn towards backboard */
         while (centerElapsedTime.milliseconds() < 200) {
-            moveRobot(0, 0.5, 0);
+            moveRobot(0, 0, 45);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Go to the center column */
+        while (centerElapsedTime.milliseconds() < 50) {
+            moveRobot(0, 1, 0);
         }
         sleep(50);
         centerElapsedTime.reset();
@@ -411,6 +691,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        moveRobot(0, 0, 0);
     }
 
 }
