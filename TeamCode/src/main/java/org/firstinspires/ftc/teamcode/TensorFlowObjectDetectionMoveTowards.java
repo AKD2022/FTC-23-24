@@ -2,26 +2,36 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.tfod.TfodProcessor;
+import org.firstinspires.ftc.teamcode.MoveRobot;
+import org.w3c.dom.Element;
+
 
 import java.util.List;
 
 public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
     private static final boolean USE_WEBCAM = true;  // true for webcam, false for phone camera
-    private DcMotor fL = null;
-    private DcMotor fR = null;
-    private DcMotor bL = null;
-    private DcMotor bR = null;
+    private DcMotor leftFrontDrive = null;
+    private DcMotor rightFrontDrive = null;
+    private DcMotor leftBackDrive = null;
+    private DcMotor rightBackDrive = null;
+
+    private Servo leftClaw, rightClaw, arm;
+    private DcMotor leftSlide, rightSlide;
+    private int currentPositionLeft, currentPositionRight;
 
     private static final String TFOD_MODEL_ASSET = "MyModelStoredAsAsset.tflite";
     private static final String[] LABELS = {
-            "teamProp",
+            "bluePipe",
+            "redPipe"
     };
 
     // Tensorflow Object Processor
@@ -33,15 +43,33 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
     @Override
     public void runOpMode() {
         initTfod();
-        fL = hardwareMap.get(DcMotor.class, "lF");
-        fR = hardwareMap.get(DcMotor.class, "rF");
-        bL  = hardwareMap.get(DcMotor.class, "lB");
-        bR = hardwareMap.get(DcMotor.class, "rB");
 
-        fL.setDirection(DcMotor.Direction.FORWARD);
-        fR.setDirection(DcMotor.Direction.REVERSE);
-        bL.setDirection(DcMotor.Direction.FORWARD);
-        bR.setDirection(DcMotor.Direction.REVERSE);
+        /* Drivetrain Init */
+        leftFrontDrive = hardwareMap.get(DcMotor.class, "lF");
+        rightFrontDrive = hardwareMap.get(DcMotor.class, "rF");
+        leftBackDrive  = hardwareMap.get(DcMotor.class, "lB");
+        rightBackDrive = hardwareMap.get(DcMotor.class, "rB");
+
+        leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
+        rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
+        leftBackDrive.setDirection(DcMotor.Direction.FORWARD);
+        rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
+
+        /* Servo Init */
+        leftClaw = hardwareMap.get(Servo.class, "leftClaw"); // 0 on control hub
+        rightClaw = hardwareMap.get(Servo.class, "rightClaw"); // 1 on control hub
+        arm = hardwareMap.get(Servo.class, "arm"); // 2 control hub
+
+        leftClaw.setPosition(0.35);
+        rightClaw.setPosition(0.35);
+
+        /* Viper Slide Init */
+        leftSlide = hardwareMap.get(DcMotor.class, "leftSlide");
+        rightSlide = hardwareMap.get(DcMotor.class, "rightSlide");
+        currentPositionLeft = leftSlide.getCurrentPosition();
+        currentPositionRight = rightSlide.getCurrentPosition();
+
+
 
         // Wait for the DS start button to be touched.
         telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
@@ -53,7 +81,6 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
             while (opModeIsActive()) {
 
                 telemetryTfod();
-
 
                 // Push telemetry to the Driver Station.
                 telemetry.update();
@@ -68,7 +95,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
                 // If it finds the cone, it should move forward
                 List<Recognition> currentRecognitions = tfod.getRecognitions();
                 for (Recognition recognition : currentRecognitions) {
-                    moveRobot(10, 0, 0);
+
                 }
 
                 // Share the CPU.
@@ -106,30 +133,126 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         visionPortal = builder.build();
     }
 
-    // Telemetry of the Object
-    private void telemetryTfod() {
 
+    private ElapsedTime runtime = new ElapsedTime();
+    private ElapsedTime timeToMove = new ElapsedTime();
+    boolean objectFound = false;
+    private void telemetryTfod() {
         List<Recognition> currentRecognitions = tfod.getRecognitions();
         telemetry.addData("# Objects Detected", currentRecognitions.size());
 
-        // Step through the list of recognitions and display info for each one.
-        for (Recognition recognition : currentRecognitions) {
-            double x = (recognition.getLeft() + recognition.getRight()) / 2 ;
-            double y = (recognition.getTop()  + recognition.getBottom()) / 2 ;
+        if (!objectFound) {
+            // starts looking at the center
+            runtime.reset();
 
-            telemetry.addData(""," ");
-            telemetry.addData("Image", "%s (%.0f %% Conf.)", recognition.getLabel(), recognition.getConfidence() * 100);
-            telemetry.addData("- Position", "%.0f / %.0f", x, y);
-            telemetry.addData("- Size", "%.0f x %.0f", recognition.getWidth(), recognition.getHeight());
-        }   
+            while (runtime.milliseconds() < 10000) {
+                for (Recognition recognitionLeft : currentRecognitions) {
+                    if (recognitionLeft != null) {
+                        double x = (recognitionLeft.getLeft() + recognitionLeft.getRight()) / 2;
+                        double y = (recognitionLeft.getTop() + recognitionLeft.getBottom()) / 2;
 
+                        telemetry.addData("", " ");
+                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognitionLeft.getLabel(), recognitionLeft.getConfidence() * 100);
+                        telemetry.addData("- Position", "%.0f / %.0f", x, y);
+                        telemetry.addData("- Size", "%.0f x %.0f", recognitionLeft.getWidth(), recognitionLeft.getHeight());
+
+                        objectFound = true;
+                        centerSpikeMark();
+
+                        return; // Exit the function
+                    }
+                }
+            }
+
+
+            // Turn left
+            moveRobot(0, 0, -45);
+            runtime.reset();
+
+            // Now iterate through recognitions to find the object's position
+            while (runtime.milliseconds() < 10000) {
+                for (Recognition recognitionRight : currentRecognitions) {
+                    if (recognitionRight != null) {
+                        double x = (recognitionRight.getLeft() + recognitionRight.getRight()) / 2;
+                        double y = (recognitionRight.getTop() + recognitionRight.getBottom()) / 2;
+
+                        telemetry.addData("", " ");
+                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognitionRight.getLabel(), recognitionRight.getConfidence() * 100);
+                        telemetry.addData("- Position", "%.0f / %.0f", x, y);
+                        telemetry.addData("- Size", "%.0f x %.0f", recognitionRight.getWidth(), recognitionRight.getHeight());
+
+                        objectFound = true;
+                        leftSpikeMark();
+
+
+                        return; // Exit the function
+                    }
+                }
+            }
+
+
+            // Turn to the right
+            moveRobot(0, 0, 90);
+            runtime.reset();
+
+            // Now iterate through recognitions to find the object's position
+            while (runtime.milliseconds() < 10000) {
+                for (Recognition recognition : currentRecognitions) {
+                    if (recognition != null) {
+                        double x = (recognition.getLeft() + recognition.getRight()) / 2;
+                        double y = (recognition.getTop() + recognition.getBottom()) / 2;
+
+                        telemetry.addData("", " ");
+                        telemetry.addData("Image", "%s (%.0f %% Conf.)", recognition.getLabel(), recognition.getConfidence() * 100);
+                        telemetry.addData("- Position", "%.0f / %.0f", x, y);
+                        telemetry.addData("- Size", "%.0f x %.0f", recognition.getWidth(), recognition.getHeight());
+
+                        objectFound = true;
+                        rightSpikeMark();
+
+                        return; // Exit the function
+                    }
+                }
+            }
+        } else {
+            // Go to Parking
+        }
     }
 
-    public void moveRobot(double drive, double strafe, double rotate) {
-        /* positive values of drive move forward, negative moves back (drive)
-           positive values of strafe move sideways to the right, negative moves left (strafe)
-           positive values of rotate rotate clockwise, negative rotate counterclockwise (twist)
-        */
+    public void moveRobot(double forwardBackward, double strafe, double rotate) {
+        // Check if any parameter has a non-zero value
+        if (forwardBackward != 0 || strafe != 0 || rotate != 0) {
+            // Calculate individual motor powers based on the parameters
+            double leftFrontPower = forwardBackward - strafe - rotate;
+            double rightFrontPower = forwardBackward + strafe + rotate;
+            double leftBackPower = forwardBackward + strafe - rotate;
+            double rightBackPower = forwardBackward - strafe + rotate;
+
+            // Normalize wheel powers to be within the range [-1, 1]
+            double max = Math.max(Math.abs(leftFrontPower), Math.abs(rightFrontPower));
+            max = Math.max(max, Math.abs(leftBackPower));
+            max = Math.max(max, Math.abs(rightBackPower));
+
+            if (max > 1.0) {
+                leftFrontPower /= max;
+                rightFrontPower /= max;
+                leftBackPower /= max;
+                rightBackPower /= max;
+            }
+
+            // Send powers to the motors
+            leftFrontDrive.setPower(leftFrontPower);
+            rightFrontDrive.setPower(rightFrontPower);
+            leftBackDrive.setPower(leftBackPower);
+            rightBackDrive.setPower(rightBackPower);
+        } else {
+            stopRobot();
+        }
+    }
+
+    /* Move Robot Backup */
+    public void moveRobotBackup(double drive, double strafe, double rotate) {
+        /* SETS POWER */
         // Calculate wheel powers.
         double leftFrontPower = drive + strafe + rotate;
         double rightFrontPower = drive - strafe - rotate;
@@ -149,11 +272,145 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
 
         // Send powers to the wheels.
-        fL.setPower(leftFrontPower);
-        fR.setPower(rightFrontPower);
-        bL.setPower(leftBackPower);
-        bR.setPower(rightBackPower);
+        leftFrontDrive.setPower(leftFrontPower);
+        rightFrontDrive.setPower(rightFrontPower);
+        leftBackDrive.setPower(leftBackPower);
+        rightBackDrive.setPower(rightBackPower);
         sleep(10);
+    }
+
+
+    private void stopRobot() {
+        leftFrontDrive.setPower(0);
+        rightFrontDrive.setPower(0);
+        leftBackDrive.setPower(0);
+        rightBackDrive.setPower(0);
+    }
+
+    private void leftSpikeMark() {
+
+    }
+
+    private void rightSpikeMark() {
+
+    }
+
+    private void centerSpikeMark() {
+        ElapsedTime centerElapsedTime = new ElapsedTime();
+        centerElapsedTime.reset();
+
+        /* Move Forward */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            moveRobot(1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Open claw with purple pixel */
+        while (centerElapsedTime.milliseconds() < 500) {
+            leftClaw.setPosition(0.65);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Close Claw */
+        while (centerElapsedTime.milliseconds() < 500) {
+            leftClaw.setPosition(0.35);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Turn towards backboard */
+        while (centerElapsedTime.milliseconds() < 200) {
+            moveRobot(0, 0.5, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Go Towards the backboard */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            moveRobot(1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move the Viper Slide up */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            /* Setting the height that it needs to go to */
+            leftSlide.setTargetPosition(3000);
+            rightSlide.setTargetPosition(3000);
+
+            /* Set the RUN TO POSITION so it runs to 3000 */
+            leftSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            rightSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            /* Setting the power of the slides */
+            leftSlide.setPower(0.5);
+            rightSlide.setPower(0.5);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move Arm */
+        while (centerElapsedTime.milliseconds() < 500) {
+            arm.setDirection(Servo.Direction.REVERSE);
+            arm.setPosition(0.75); // Change to what is in the code
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Open Claw to drop the other pixel in */
+        while (centerElapsedTime.milliseconds() < 500) {
+            rightClaw.setPosition(0.75);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Close Claw */
+        while (centerElapsedTime.milliseconds() < 500) {
+            rightClaw.setPosition(0.35);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Reset Arm */
+        while (centerElapsedTime.milliseconds() < 500) {
+            arm.setDirection(Servo.Direction.REVERSE);
+            arm.setPosition(0.15); // Change to what is in the code
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move the Viper Slide Back Down */
+        while (centerElapsedTime.milliseconds() < 1000) {
+            /* Setting the height that it needs to go to */
+            leftSlide.setTargetPosition(150);
+            rightSlide.setTargetPosition(150);
+
+            /* Set the RUN TO POSITION so it runs to 3000 */
+            leftSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            rightSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            /* Setting the power of the slides */
+            leftSlide.setPower(0.5);
+            rightSlide.setPower(0.5);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Strafe towards the Parking */
+        while (centerElapsedTime.milliseconds() < 500) {
+            moveRobot(0, 1, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
+
+        /* Move Back A bit */
+        while (centerElapsedTime.milliseconds() < 100) {
+            moveRobot(-1, 0, 0);
+        }
+        sleep(50);
+        centerElapsedTime.reset();
     }
 
 }
