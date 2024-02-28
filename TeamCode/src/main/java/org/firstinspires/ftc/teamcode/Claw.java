@@ -15,17 +15,24 @@ public class Claw extends LinearOpMode {
         leftClaw.setPosition(0.35);
         rightClaw.setPosition(0.35);
 
+        rightClaw.setDirection(Servo.Direction.REVERSE);
+        arm.setDirection(Servo.Direction.REVERSE);
+
+        arm.setPosition(0.8);
+
+        waitForStart();
+
         while (opModeIsActive()) {
             if (gamepad2.x) {
-                leftClaw.setPosition(0.35);
-                rightClaw.setPosition(0.35);
+                leftClaw.setPosition(0.5);
+                rightClaw.setPosition(0.5);
             } else if (gamepad2.y) {
-                leftClaw.setPosition(0.75);
-                rightClaw.setPosition(0.75);
+                leftClaw.setPosition(0.68);
+                rightClaw.setPosition(0.68);
             } else if (gamepad2.a) {
-                arm.setPosition(0.75); // adjust later
+                arm.setPosition(0.8); // adjust later
             } else if (gamepad2.b) {
-                arm.setPosition(0.15); // adjust later
+                arm.setPosition(0.5); // adjust later
             }
 
         }

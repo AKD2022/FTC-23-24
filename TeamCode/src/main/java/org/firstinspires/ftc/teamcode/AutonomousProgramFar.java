@@ -57,7 +57,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
 // If we are on the far side
 
-@Autonomous(name="Autonomous")
+@Autonomous(name="AutonomousFar")
 public class AutonomousProgramFar extends LinearOpMode
 {
     final double DESIRED_DISTANCE = 12; //  this is how close the camera should get to the target (inches)

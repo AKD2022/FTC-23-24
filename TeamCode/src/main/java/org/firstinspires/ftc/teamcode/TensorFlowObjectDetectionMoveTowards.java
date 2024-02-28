@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -10,12 +11,12 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.tfod.TfodProcessor;
-import org.firstinspires.ftc.teamcode.MoveRobot;
 import org.w3c.dom.Element;
 
 
 import java.util.List;
 
+@TeleOp(name="autoFinal")
 public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
     private static final boolean USE_WEBCAM = true;  // true for webcam, false for phone camera
@@ -28,7 +29,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
     private DcMotor leftSlide, rightSlide;
     private int currentPositionLeft, currentPositionRight;
 
-    private static final String TFOD_MODEL_ASSET = "MyModelStoredAsAsset.tflite";
+    private static final String TFOD_MODEL_FILE = "model_20240208_132717.tflite";
     private static final String[] LABELS = {
             "bluePipe",
             "redPipe"
@@ -45,10 +46,10 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         initTfod();
 
         /* Drivetrain Init */
-        leftFrontDrive = hardwareMap.get(DcMotor.class, "lF");
-        rightFrontDrive = hardwareMap.get(DcMotor.class, "rF");
-        leftBackDrive  = hardwareMap.get(DcMotor.class, "lB");
-        rightBackDrive = hardwareMap.get(DcMotor.class, "rB");
+        leftFrontDrive = hardwareMap.get(DcMotor.class, "fL");
+        rightFrontDrive = hardwareMap.get(DcMotor.class, "fR");
+        leftBackDrive  = hardwareMap.get(DcMotor.class, "bL");
+        rightBackDrive = hardwareMap.get(DcMotor.class, "bR");
 
         leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -60,8 +61,9 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         rightClaw = hardwareMap.get(Servo.class, "rightClaw"); // 1 on control hub
         arm = hardwareMap.get(Servo.class, "arm"); // 2 control hub
 
-        leftClaw.setPosition(0.35);
-        rightClaw.setPosition(0.35);
+        leftClaw.setPosition(0.5);
+        rightClaw.setPosition(0.5);
+        rightClaw.setDirection(Servo.Direction.REVERSE);
 
         /* Viper Slide Init */
         leftSlide = hardwareMap.get(DcMotor.class, "leftSlide");
@@ -69,12 +71,23 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         currentPositionLeft = leftSlide.getCurrentPosition();
         currentPositionRight = rightSlide.getCurrentPosition();
 
-
-
         // Wait for the DS start button to be touched.
         telemetry.addData("DS preview on/off", "3 dots, Camera Stream");
         telemetry.addData(">", "Touch Play to start OpMode");
         telemetry.update();
+
+        tfod = new TfodProcessor.Builder()
+                .setModelFileName(TFOD_MODEL_FILE)
+                .setModelLabels(LABELS)
+                .build();
+
+        VisionPortal.Builder builder = new VisionPortal.Builder();
+        if (USE_WEBCAM) {
+            builder.setCamera(hardwareMap.get(WebcamName.class, "Webcam"));
+        } else {
+            builder.setCamera(BuiltinCameraDirection.BACK);
+        }
+
         waitForStart();
 
         if (opModeIsActive()) {
@@ -113,7 +126,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
         // Create the TensorFlow processor by using a builder.
         tfod = new TfodProcessor.Builder()
-                .setModelAssetName(TFOD_MODEL_ASSET)
+                .setModelFileName(TFOD_MODEL_FILE)
                 .setModelLabels(LABELS)
                 .build();
 
@@ -122,15 +135,10 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
         // Set the camera (webcam vs. built-in RC phone camera).
         if (USE_WEBCAM) {
-            builder.setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"));
+            builder.setCamera(hardwareMap.get(WebcamName.class, "Webcam"));
         } else {
             builder.setCamera(BuiltinCameraDirection.BACK);
         }
-
-        builder.enableLiveView(true);
-        builder.addProcessor(tfod);
-
-        visionPortal = builder.build();
     }
 
 
@@ -146,7 +154,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
             // starts looking at the center
             runtime.reset();
 
-            while (runtime.milliseconds() < 10000) {
+            while (runtime.milliseconds() < 5000) {
                 for (Recognition recognition : currentRecognitions) {
                     if (recognition != null) {
                         double x = (recognition.getLeft() + recognition.getRight()) / 2;
@@ -172,14 +180,15 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
             // Turn left
             timeToMove.reset();
-            if (timeToMove.milliseconds() < 100) {
-                moveRobot(0, 0, -45);
+            while (timeToMove.milliseconds() < 100) {
+                moveRobot(0, 0, 0.5);
             }
+            stopRobot();
             timeToMove.reset();
             runtime.reset();
 
             // Now iterate through recognitions to find the object's position
-            while (runtime.milliseconds() < 10000) {
+            while (runtime.milliseconds() < 5000) {
                 for (Recognition recognition : currentRecognitions) {
                     if (recognition != null) {
                         double x = (recognition.getLeft() + recognition.getRight()) / 2;
@@ -205,14 +214,15 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
 
             // Turn to the right
             timeToMove.reset();
-            if (timeToMove.milliseconds() < 100) {
-                moveRobot(0, 0, 180);
+            while (timeToMove.milliseconds() < 100) {
+                moveRobot(0, 0, -0.5);
             }
+            stopRobot();
             timeToMove.reset();
             runtime.reset();
 
             // Now iterate through recognitions to find the object's position
-            while (runtime.milliseconds() < 10000) {
+            while (runtime.milliseconds() < 5000) {
                 for (Recognition recognition : currentRecognitions) {
                     if (recognition != null) {
                         double x = (recognition.getLeft() + recognition.getRight()) / 2;
@@ -325,6 +335,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Open claw with purple pixel */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -332,6 +343,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Close Claw */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -339,6 +351,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Turn towards backboard */
         while (centerElapsedTime.milliseconds() < 200) {
@@ -346,6 +359,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Go to the left column */
         while (centerElapsedTime.milliseconds() < 50) {
@@ -353,6 +367,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Go Towards the backboard */
         while (centerElapsedTime.milliseconds() < 1200) {
@@ -360,6 +375,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move the Viper Slide up */
         while (centerElapsedTime.milliseconds() < 1000) {
@@ -377,6 +393,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move Arm */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -385,6 +402,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Open Claw to drop the other pixel in */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -392,6 +410,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Close Claw */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -399,6 +418,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Reset Arm */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -407,6 +427,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move the Viper Slide Back Down */
         while (centerElapsedTime.milliseconds() < 1000) {
@@ -424,6 +445,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Strafe towards the Parking */
         while (centerElapsedTime.milliseconds() < 750) {
@@ -431,6 +453,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move Back A bit */
         while (centerElapsedTime.milliseconds() < 100) {
@@ -439,6 +462,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         sleep(50);
         centerElapsedTime.reset();
         moveRobot(0, 0, 0);
+        stopRobot();
     }
 
 
@@ -452,6 +476,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Open claw with purple pixel */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -459,6 +484,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Close Claw */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -466,6 +492,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Turn towards backboard */
         while (centerElapsedTime.milliseconds() < 200) {
@@ -473,6 +500,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Go to the right column */
         while (centerElapsedTime.milliseconds() < 50) {
@@ -480,6 +508,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Go Towards the backboard */
         while (centerElapsedTime.milliseconds() < 750) {
@@ -487,6 +516,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move the Viper Slide up */
         while (centerElapsedTime.milliseconds() < 1000) {
@@ -504,6 +534,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move Arm */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -512,6 +543,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Open Claw to drop the other pixel in */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -526,6 +558,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Reset Arm */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -534,6 +567,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move the Viper Slide Back Down */
         while (centerElapsedTime.milliseconds() < 1000) {
@@ -551,6 +585,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Strafe towards the Parking */
         while (centerElapsedTime.milliseconds() < 750) {
@@ -558,6 +593,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move Back A bit */
         while (centerElapsedTime.milliseconds() < 100) {
@@ -566,6 +602,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         sleep(50);
         centerElapsedTime.reset();
         moveRobot(0, 0, 0);
+        stopRobot();
     }
 
     private void centerSpikeMark() {
@@ -578,6 +615,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Open claw with purple pixel */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -585,6 +623,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Close Claw */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -592,6 +631,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Turn towards backboard */
         while (centerElapsedTime.milliseconds() < 200) {
@@ -599,6 +639,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Go to the center column */
         while (centerElapsedTime.milliseconds() < 50) {
@@ -606,6 +647,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Go Towards the backboard */
         while (centerElapsedTime.milliseconds() < 1000) {
@@ -613,6 +655,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move the Viper Slide up */
         while (centerElapsedTime.milliseconds() < 1000) {
@@ -630,6 +673,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move Arm */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -638,20 +682,23 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Open Claw to drop the other pixel in */
-        while (centerElapsedTime.milliseconds() < 500) {
+        while (centerElapsedTime.milliseconds() < 200) {
             rightClaw.setPosition(0.75);
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Close Claw */
-        while (centerElapsedTime.milliseconds() < 500) {
+        while (centerElapsedTime.milliseconds() < 200) {
             rightClaw.setPosition(0.35);
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Reset Arm */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -660,6 +707,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move the Viper Slide Back Down */
         while (centerElapsedTime.milliseconds() < 1000) {
@@ -677,6 +725,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Strafe towards the Parking */
         while (centerElapsedTime.milliseconds() < 500) {
@@ -684,6 +733,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         }
         sleep(50);
         centerElapsedTime.reset();
+        stopRobot();
 
         /* Move Back A bit */
         while (centerElapsedTime.milliseconds() < 100) {
@@ -692,6 +742,7 @@ public class TensorFlowObjectDetectionMoveTowards extends LinearOpMode {
         sleep(50);
         centerElapsedTime.reset();
         moveRobot(0, 0, 0);
+        stopRobot();
     }
 
 }

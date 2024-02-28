@@ -16,7 +16,7 @@ public class ViperSlides extends LinearOpMode {
         currentPositionLeft = leftSlide.getCurrentPosition();
         currentPositionRight = rightSlide.getCurrentPosition();
 
-
+        waitForStart();
         while (opModeIsActive()) {
             if (gamepad2.left_trigger != 0) {
                 leftSlide.setPower(1.0);
@@ -24,20 +24,28 @@ public class ViperSlides extends LinearOpMode {
             } else if (gamepad2.right_trigger != 0) {
                 leftSlide.setPower(-1.0);
                 rightSlide.setPower(-1.0);
+            } else {
+                leftSlide.setPower(0.0);
+                rightSlide.setPower(0.0);
             }
 
             leftSlide.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             rightSlide.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
             if (gamepad2.left_bumper) {
-                if (currentPositionLeft < 6000 && currentPositionRight < 6000) {
-                    leftSlide.setTargetPosition(6000);
-                    rightSlide.setTargetPosition(6000);
+                if (currentPositionLeft < 3000 && currentPositionRight < 3000) {
+                    leftSlide.setTargetPosition(3000);
+                    rightSlide.setTargetPosition(3000);
+
+                    leftSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    rightSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                 }
             } else if (gamepad2.right_bumper) {
-                if (currentPositionLeft >= 6000 && currentPositionRight >= 6000) {
+                if (currentPositionLeft >= 3000 && currentPositionRight >= 3000) {
                     leftSlide.setTargetPosition(10);
                     rightSlide.setTargetPosition(10);
+                    leftSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    rightSlide.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                 }
             }
 
